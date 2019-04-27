@@ -1,71 +1,79 @@
 import React, { Component } from 'react';
 import './MainView.css';
-import ConetntList from "../component/contentList/ContentList.js";
+import ContentList from "../component/contentList/ContentList.js";
 import FullContent from '../component/fullcontent/FullContent.js';
-import axios from 'axios';
+import { connect } from 'react-redux';
+import { fetchContents, changeFullContent } from "../actions";
 
 class MainView extends Component {
-	constructor(props) {
-	  super(props);
-      this.state = {
-      	fullContent: {},// 메인화면에 가장 큰 영상 플레이어 콘텐츠를 가지는 state
-	  	contents : [] // 하단의 리스트에 들어갈 콘텐츠를 가지는 state
-	  };
-	}
-
-// 서버로 부터 받은 데이터를 내가 원하는 형태로 변경 하는 함수
-// {id: , name: } 형식으로 모든 데이터들을 변환
-  setContents = (data) => { 
-   let list = []
-    data.items.forEach((item, index) => {
-        list.push({id:item.id,name:item.snippet.title})
-    })
-    return list
-  }
-
 //컴포넌트 렌더링이 완료된 후 유튜브에서 데이터 불러옴
   componentDidMount() {
-  	this.fetchYoutube()
+    this.props.fetchContents()//mapDispatchToProps에서 선언한 유튜브데이터를 불러오는 액션
+  }
+
+//컴포넌트 종료시 contents 초기화
+  componentWillUnmount() {
+    this.props.removeContents()//mapDispatchToProps에서 선언한 contents를 초기화하는 액션
   }
 
 //메인화면에서 영상을 실행하는 플레이어를 제어하는 함수
 //이 함수를 이용해서 영상을 변경 한다.
   handleFullContentChange = (content) => {
-    this.setState({
-      fullContent:content
-    })
-  }
-
-//유튜브에 ajax 통신을 해서 데이터를 불러 오는 함수
-  fetchYoutube = () => {
-  	//axios를 이용해서 유튜브에 영상 목록을 달라고 요청
-    axios.get('https://www.googleapis.com/youtube/v3/videos?part=snippet&chart=mostPopular&key=AIzaSyC-v1sIG2Wn3YnoD_7_bBS4zPDceDLKmLY&maxResults=21')
-    .then(({data}) => {//유튜브로 부터 요청한 데이터를 전달 받으면 then으로 데이터를 받음
-    					//디스트럭쳐링을 통해서 유튜브로부터 받은 데이터중에서 data만 가져옴 
-
-	    const list = this.setContents(data)//받아온 데이터를 내가 원하는 형태로 가공
-
-	    this.setState({// 가공한 데이터로 지금 바로 실행할 데이터와, 목록에 보여줄 데이터를 state에 저장
-	        contents:list.slice(1,list.length),//slice 함수는 배열형 데이터를 첫번째인자부터 두번째인자 전까지를 반환해주는 함수 입니다.
-	        fullContent:list[0]//가져온 데이터중 첫번째 데이터를 화면에서 실행 시킵니다.
-	    })
-    })
+    this.props.changeViewContent(content)//mapDispatchToProps에서 선언한 viewContent를 변환하는 액션
   }
 
   render() {
     return (
       <div className="mainView">
-      	{/*
-			영상을 실행 시키는 컴포넌트 
-      	*/}
-      	<FullContent content={this.state.fullContent}/>
-      	{/*
-			실행할 영상 리스트를 출력하는 컴포넌트
-      	*/}
-       	<ConetntList contents={this.state.contents} onClick={this.handleFullContentChange} />
+          {/*
+            영상을 실행 시키는 컴포넌트 
+         redux로 부터 받은 currentViewContent를 props로 사용
+          */}
+          <FullContent content={this.props.currentViewContent}/>
+          {/*
+            실행할 영상 리스트를 출력하는 컴포넌트
+        redux로 부터 받은 contents를 props로 사용
+          */}
+           <ContentList contents={this.props.contents} onClick={this.handleFullContentChange} />
       </div>
     );
   }
 }
 
-export default MainView;
+//store의 state를 컴포넌트의 props로 전달 시켜줌
+const mapStateToProps = (state) => {
+  //store는 state를 리듀서 단위로 가지고 있어서 각각의 리듀서를 불러와서
+  //컴포넌트에 props로 전달할 값들을 뽑아낸다.
+  const { contentsByYoutube, selectedContent } = state
+  const {
+    isFetching,
+    lastUpdated,
+    items: contents,
+  } = contentsByYoutube
+
+  const { 
+    viewContent: currentViewContent
+  } = selectedContent
+
+  return {
+    isFetching,
+    contents,
+    lastUpdated,
+    currentViewContent
+  }
+}
+
+//action을 미리 dispatch해서 컴포넌트의 props로 전달 해주는 함수
+const mapDispatchToProps = dispatch => ({
+  fetchContents: () => dispatch(fetchContents()),
+  changeViewContent: (content) => dispatch(changeFullContent(content)),
+
+});
+
+//connect함수를 이용해 container component와 redux를 연결
+//connect함수는 컴포넌트의 props와 store의 데이터를 연결 시켜주는 함수를 리턴
+//mapStateToProps, MapDispatchToProps는 connect함수의 인자로 따로 선언해줘야 함
+export default connect(
+  mapStateToProps,
+  mapDispatchToProps
+)(MainView);
